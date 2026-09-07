@@ -1,5 +1,5 @@
 # schema for table: students
-ID: boolean
+ID: number
 First Name: string
 Last Name: string
 Email: string
