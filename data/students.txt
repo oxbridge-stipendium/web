@@ -1,8 +1,8 @@
 # schema for table: students
 ID: boolean
-First Name: enum(test)
-Last Name: enum(tester)
-Email: enum(some@test.com)
-Degree: enum(english)
-University: enum(Cambridge)
-College: enum(Christ College)
+First Name: string
+Last Name: string
+Email: string
+Degree: string
+University: string
+College: string
