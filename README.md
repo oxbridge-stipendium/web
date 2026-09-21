@@ -69,34 +69,23 @@ Otevři `http://127.0.0.1:4173/`. Nic se nemusí instalovat. Po uložení soubor
 
 ## Seznam všech stránek
 
-### Česky
+Pět stránek v každém jazyce, celkem 15 veřejných adres.
 
-| Adresa | Soubor |
-|---|---|
-| `/` | `index.html` |
-| `/about/` | `about/index.html` |
-| `/donors/` | `donors/index.html` |
-| `/students/` | `students/index.html` |
-| `/scholarship-seekers/` | `scholarship-seekers/index.html` |
-| `/blog/` | `blog/index.html` |
-| `/event-list/` | `event-list/index.html` |
-| `/event-details/…/` | `event-details/…/index.html` |
-| `/book-online/` | `book-online/index.html` |
-| `/inquiry-services-page/` | `inquiry-services-page/index.html` |
-| `/donation-thank-you-page/` | `donation-thank-you-page/index.html` |
-| `/blank/` | zásady ochrany osobních údajů |
-| `/blank-1/` | prohlášení o přístupnosti |
-| `/blank-2/` | obchodní podmínky |
-| `/blank-3/` | podmínky vrácení peněz |
-| `/profile/oxbridge-stipendium84677/profile/` | profil autora |
+| Česky | Anglicky | Slovensky | Obsah |
+|---|---|---|---|
+| `/` | `/en/` | `/sk/` | úvodní stránka |
+| `/about/` | `/en/about/` | `/sk/about/` | o nás |
+| `/donors/` | `/en/donors/` | `/sk/donors/` | pro dárce |
+| `/students/` | `/en/students/` | `/sk/students/` | studenti |
+| `/scholarship-seekers/` | `/en/scholarship-seekers/` | `/sk/scholarship-seekers/` | žadatelé o stipendium |
 
-Adresy `/blank/` až `/blank-3/` jsou pozůstatek z Wixu. Nejsou hezké, ale jsou už rozeslané a zaindexované, takže je záměrně neměníme.
+Soubor každé stránky leží na její adrese: `/donors/` je `donors/index.html`, `/en/donors/` je `en/donors/index.html`.
 
-### Anglicky a slovensky
+### Co bylo smazáno
 
-Stejná struktura pod `/en/` a `/sk/`. Anglická verze má navíc tři články pod `/en/post/…/`.
+21. 9. 2026 se na pokyn týmu odstranilo 42 stránek: blog a články, přehled a detaily proběhlých akcí, rezervace, poptávka služeb, poděkování po daru, profily autora a čtyři právní stránky (ochrana osobních údajů, přístupnost, obchodní podmínky, vrácení peněz).
 
-Celkem 57 veřejných adres: 18 českých, 21 anglických, 18 slovenských.
+Všechny zůstávají v historii Gitu a dají se vrátit. Před nasazením na ostrý web stojí za zvážení, jestli nemá web mít zásady ochrany osobních údajů — vyžaduje je GDPR u webu, který sbírá kontakty, a formulář pro dárce kontakty sbírá.
 
 ## Co na webu nefunguje jako dřív
 
