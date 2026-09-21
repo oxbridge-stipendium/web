@@ -371,7 +371,7 @@
     dialog.showModal();
     searchInput.focus();
     try {
-      const response = await fetch('/web/assets/search.json');
+      const response = await fetch('/assets/search.json');
       if (!response.ok) throw new Error('Search unavailable');
       const posts = await response.json();
       const updateResults = () => {
