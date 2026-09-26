@@ -27,34 +27,40 @@ HIDDEN = (
     '<input type="hidden" name="html_type" value="simple">'
 )
 
+# Pole se jmenují v každé jazykové verzi jinak, cílové názvy jsou ale společné.
+FIELDS_CS_EN = {"first-name": "FIRSTNAME", "last-name": "LASTNAME", "email": "EMAIL"}
+FIELDS_SK = {"krstné-meno": "FIRSTNAME", "priezvisko": "LASTNAME", "email": "EMAIL"}
+
+LABELS_CS = {
+    ">First name</label>": ">Jméno</label>",
+    ">Last name</label>": ">Příjmení</label>",
+    'placeholder="First name"': 'placeholder="Jméno"',
+    'placeholder="Last name"': 'placeholder="Příjmení"',
+    ">Register</span>": ">Zaregistrovat se</span>",
+    'aria-label="Register"': 'aria-label="Zaregistrovat se"',
+    "Thanks for your support!": "Děkujeme, registraci máme. Potvrzení jsme poslali na váš e-mail.",
+}
+
+LABELS_EN = {
+    "Thanks for your support!": "Thank you, you are registered. We have sent a confirmation to your e-mail.",
+}
+
+LABELS_SK = {
+    ">Register</span>": ">Zaregistrovať sa</span>",
+    'aria-label="Register"': 'aria-label="Zaregistrovať sa"',
+    "Thanks for your support!": "Ďakujeme, registráciu máme. Potvrdenie sme poslali na váš e-mail.",
+}
+
 PAGES = {
-    "donors/index.html": {
-        "locale": "cs",
-        "fields": {"first-name": "FIRSTNAME", "last-name": "LASTNAME", "email": "EMAIL"},
-        "labels": {
-            ">First name</label>": ">Jméno</label>",
-            ">Last name</label>": ">Příjmení</label>",
-            'placeholder="First name"': 'placeholder="Jméno"',
-            'placeholder="Last name"': 'placeholder="Příjmení"',
-            ">Register</span>": ">Zaregistrovat se</span>",
-            'aria-label="Register"': 'aria-label="Zaregistrovat se"',
-            "Thanks for your support!": "Děkujeme, registraci máme. Potvrzení jsme poslali na váš e-mail.",
-        },
-    },
-    "en/donors/index.html": {
-        "locale": "en",
-        "fields": {"first-name": "FIRSTNAME", "last-name": "LASTNAME", "email": "EMAIL"},
-        "labels": {
-            "Thanks for your support!": "Thank you, you are registered. We have sent a confirmation to your e-mail.",
-        },
-    },
-    "sk/donors/index.html": {
-        "locale": "sk",
-        "fields": {"krstné-meno": "FIRSTNAME", "priezvisko": "LASTNAME", "email": "EMAIL"},
-        "labels": {
-            "Thanks for your support!": "Ďakujeme, registráciu máme. Potvrdenie sme poslali na váš e-mail.",
-        },
-    },
+    "index.html": {"locale": "cs", "fields": FIELDS_CS_EN, "labels": LABELS_CS},
+    "donors/index.html": {"locale": "cs", "fields": FIELDS_CS_EN, "labels": LABELS_CS},
+    "scholarship-seekers/index.html": {"locale": "cs", "fields": FIELDS_CS_EN, "labels": LABELS_CS},
+    "en/index.html": {"locale": "en", "fields": FIELDS_CS_EN, "labels": LABELS_EN},
+    "en/donors/index.html": {"locale": "en", "fields": FIELDS_CS_EN, "labels": LABELS_EN},
+    "en/scholarship-seekers/index.html": {"locale": "en", "fields": FIELDS_CS_EN, "labels": LABELS_EN},
+    "sk/index.html": {"locale": "sk", "fields": FIELDS_SK, "labels": LABELS_SK},
+    "sk/donors/index.html": {"locale": "sk", "fields": FIELDS_SK, "labels": LABELS_SK},
+    "sk/scholarship-seekers/index.html": {"locale": "sk", "fields": FIELDS_SK, "labels": LABELS_SK},
 }
 
 
@@ -79,14 +85,17 @@ def wire(path: str, cfg: dict) -> None:
         html = html.replace(f'name="{old}"', f'name="{new}"')
 
     # 3. Skrytá pole před koncem každého formuláře.
-    html = html.replace("</form>", HIDDEN.format(locale=cfg["locale"]) + "</form>")
+    #    Jen jednou — skript se může pustit znovu, až přibude další stránka.
+    if "email_address_check" not in html:
+        html = html.replace("</form>", HIDDEN.format(locale=cfg["locale"]) + "</form>")
 
     # 4. Popisky v jazyce stránky.
     for old, new in cfg["labels"].items():
         html = html.replace(old, new)
 
     if html == before:
-        sys.exit(f"CHYBA: v {path} se nic nezměnilo")
+        print(f"{path}: už napojeno, přeskočeno")
+        return
 
     f.write_text(html, encoding="utf-8")
 
