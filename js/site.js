@@ -452,13 +452,26 @@
       document.body.append(sink);
     }
 
+    const language = document.documentElement.lang;
+    const thanksText =
+      language === 'en'
+        ? 'Thank you, you are registered. We have sent a confirmation to your e-mail.'
+        : language === 'sk'
+          ? 'Ďakujeme, registráciu máme. Potvrdenie sme poslali na váš e-mail.'
+          : 'Děkujeme, registraci máme. Potvrzení jsme poslali na váš e-mail.';
+
     forms.forEach((form) => {
-      const thanks = form.querySelector('[id*="thanks-for-your-support"]');
-      if (thanks) {
-        thanks.hidden = true;
-        thanks.removeAttribute('aria-hidden');
-        thanks.setAttribute('role', 'status');
+      // Část stránek má poděkování už v HTML (zůstalo z Wixu), zbytku ho doplníme.
+      let thanks = form.querySelector('[id*="thanks-for-your-support"]');
+      if (!thanks) {
+        thanks = document.createElement('p');
+        thanks.className = 'static-form-status';
+        thanks.textContent = thanksText;
+        form.append(thanks);
       }
+      thanks.hidden = true;
+      thanks.removeAttribute('aria-hidden');
+      thanks.setAttribute('role', 'status');
 
       form.addEventListener('submit', () => {
         // Neplatná pole zastaví prohlížeč sám, sem se pak vůbec nedostaneme.
