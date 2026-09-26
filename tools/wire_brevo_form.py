@@ -15,7 +15,7 @@ import sys
 BREVO_ACTION = (
     "https://6e5b9a69.sibforms.com/serve/MUIFAH6ocRUaguGiVRQJ6g-3hjDS5QsOG6-"
     "YWePKNdIUG1KMnlHbfa7udKn4CIgFwWWdUBDGl4UtilvRB0M1eJ5vXvcrvQM6eFzPxuTKR4fugvz"
-    "CKOGzQVV_SNYnmLF2iPv3R-cV6PhcPyPIAb0uY8t9Dp92LFRV2VTBUFGI50w-4Y5MOQ=="
+    "CKOGzQVV_SNYnmLF2iPv3R-cV6PhcPyPIAb0uY8t9Dp92LFRV2VTBUFGI50w-4Y5MOQ__BUUVsVFXAwyUe9KQuI3L5t2vSkz2Dw=="
 )
 
 # Skryté pole email_address_check je past na roboty: Brevo zahodí odeslání,
