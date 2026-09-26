@@ -29,3 +29,24 @@
   --text-rgb: 255, 255, 255;
   --text-hover-rgb: 255, 255, 255;
 }
+
+/* === Formulář dárců napojený na Brevo (2026-09-26) === */
+/* Past na roboty: pole musí v HTML být, ale člověk ho nesmí vidět ani do něj trefit tabulátorem. */
+.brevo-honeypot {
+  position: absolute !important;
+  left: -9999px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+/* Poděkování je schované do chvíle, než formulář opravdu odejde; ukáže ho skript. */
+#donors-rich-text-thanks-for-your-support[hidden] {
+  display: none !important;
+}
+/* Skrytý rámeček, do kterého se formulář odesílá, aby návštěvník zůstal na stránce. */
+#brevo-sink {
+  display: none !important;
+}

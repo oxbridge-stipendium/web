@@ -433,44 +433,47 @@
       );
   }
 
+  // Formulář dárců odesílá do Brevo. Aby návštěvník nezůstal na cizí
+  // děkovací stránce, míří odeslání do skrytého rámečku a poděkování
+  // ukážeme přímo pod formulářem. Bez JavaScriptu se formulář odešle
+  // normálně a potvrzení zobrazí Brevo — funguje to tak jako tak.
   function initializeDonorForms() {
-    document.querySelectorAll('[data-donor-form]').forEach((form) => {
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        if (!form.reportValidity()) return;
-        const formData = new FormData(form);
-        const donorName = [formData.get('first-name'), formData.get('last-name')]
-          .filter(Boolean)
-          .join(' ');
-        const emailBody = `Dobrý den,\n\nmám zájem zapojit se jako dárce do Oxbridge Stipendium.\n\nJméno: ${donorName}\nE-mail: ${formData.get('email')}\n`;
-        const mailtoUrl =
-          'mailto:stipendium@oxbridgestipendium.org?subject=' +
-          encodeURIComponent('Oxbridge Stipendium – zájem dárce') +
-          '&body=' +
-          encodeURIComponent(emailBody);
-        let statusMessage = form.querySelector('.static-form-status');
-        if (!statusMessage) {
-          statusMessage = document.createElement('p');
-          statusMessage.className = 'static-form-status';
-          statusMessage.setAttribute('role', 'status');
-          form.append(statusMessage);
-        }
-        const language = document.documentElement.lang;
-        statusMessage.textContent =
-          language === 'en'
-            ? 'Send the prepared email to complete your registration. '
-            : language === 'sk'
-              ? 'Registráciu dokončíte odoslaním pripraveného e-mailu. '
-              : 'Registraci dokončíte odesláním připraveného e-mailu. ';
-        const emailLink = document.createElement('a');
-        emailLink.href = mailtoUrl;
-        emailLink.textContent =
-          language === 'en'
-            ? 'Open email'
-            : language === 'sk'
-              ? 'Otvoriť e-mail'
-              : 'Otevřít e-mail';
-        statusMessage.append(emailLink);
+    const forms = document.querySelectorAll('[data-brevo-form]');
+    if (!forms.length) return;
+
+    let sink = document.getElementById('brevo-sink');
+    if (!sink) {
+      sink = document.createElement('iframe');
+      sink.id = 'brevo-sink';
+      sink.name = 'brevo-sink';
+      sink.title = 'Odeslání formuláře';
+      sink.setAttribute('aria-hidden', 'true');
+      sink.hidden = true;
+      document.body.append(sink);
+    }
+
+    forms.forEach((form) => {
+      const thanks = form.querySelector('[id*="thanks-for-your-support"]');
+      if (thanks) {
+        thanks.hidden = true;
+        thanks.removeAttribute('aria-hidden');
+        thanks.setAttribute('role', 'status');
+      }
+
+      form.addEventListener('submit', () => {
+        // Neplatná pole zastaví prohlížeč sám, sem se pak vůbec nedostaneme.
+        const button = form.querySelector('button[type="submit"]');
+        if (button) button.disabled = true;
+
+        sink.addEventListener(
+          'load',
+          () => {
+            if (thanks) thanks.hidden = false;
+            form.reset();
+            if (button) button.disabled = false;
+          },
+          { once: true },
+        );
       });
     });
   }
