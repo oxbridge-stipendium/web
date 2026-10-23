@@ -134,7 +134,7 @@
       icon.setAttribute('aria-hidden', 'true');
       icon.setAttribute('focusable', 'false');
       const symbol = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-      symbol.setAttribute('href', '/assets/icons.svg#mail');
+      symbol.setAttribute('href', '/web/next/assets/icons.svg#mail');
       icon.append(symbol);
       openEmail.append(icon);
       status.replaceChildren(note, openEmail);
@@ -219,7 +219,7 @@
     searchForm.hidden = false;
     searchForm.addEventListener('submit', (event) => { event.preventDefault(); search(); });
     field.addEventListener('input', search);
-    fetch('/assets/search.json').then((response) => {
+    fetch('/web/next/assets/search.json').then((response) => {
       if (!response.ok) throw new Error('Search index unavailable');
       return response.json();
     }).then((data) => { articles = data; search(); }).catch(() => {
