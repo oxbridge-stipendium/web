@@ -187,6 +187,16 @@
     });
   }
 
+  // Rok v patičce držíme aktuální, aby na něj po Novém roce nikdo nemusel myslet.
+  // V HTML je natvrdo loňský rok jako záloha pro případ, že JavaScript neprojde.
+  function refreshCopyrightYear() {
+    const year = String(new Date().getFullYear());
+    document.querySelectorAll('[data-current-year]').forEach((element) => {
+      element.textContent = year;
+    });
+  }
+
+  refreshCopyrightYear();
   randomizeFeaturedStudents();
   randomizeSeekerOrder();
   chooseInitialLanguage();
