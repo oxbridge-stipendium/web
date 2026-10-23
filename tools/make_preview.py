@@ -31,7 +31,7 @@ HTML_SUFFIXES = {".html"}
 TEXT_SUFFIXES = {".html", ".css", ".js", ".json"}
 
 # Atributy, které mohou nést jednu adresu.
-URL_ATTRS = ("href", "src", "content", "action", "poster", "data-src")
+URL_ATTRS = ("href", "src", "content", "action", "poster", "data-src", "data-student-source")
 
 
 def prefix_url(value: str, prefix: str) -> str:
