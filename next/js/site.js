@@ -152,9 +152,45 @@
     if (target && wanted !== current.hreflang) location.replace(target.href);
   }
 
+  // --- Mereni (Umami) ---------------------------------------------------
+  // Merici skript se vklada az se skutecnym website-id (tools/add_umami.py).
+  // Dokud tam neni, data atributy nic nedelaji a volani track() se zahodi.
+
+  function track(name, data) {
+    try {
+      window.umami?.track(name, data);
+    } catch {
+      // Mereni nikdy nesmi shodit stranku.
+    }
+  }
+
+  // Umami si pri kliknuti precte atribut data-umami-event, takze ho staci
+  // doplnit za behu a nemusime sahat do vsech 58 stranek.
+  function prepareAnalyticsEvents() {
+    const label = (element, name) => {
+      if (element && !element.dataset.umamiEvent) element.dataset.umamiEvent = name;
+    };
+
+    document.querySelectorAll('.hero-copy .actions .button').forEach((el) => label(el, 'cta-podporit-studenta'));
+    document.querySelectorAll('.hero-copy .actions .text-link').forEach((el) => label(el, 'cta-jsem-student'));
+    document.querySelectorAll('.callout .button, .contact-band .button, .section-action .button').forEach((el) => label(el, 'cta-sekce'));
+    document.querySelectorAll('.student-card .text-link').forEach((el) => label(el, 'profil-uchazece'));
+    document.querySelectorAll('.languages a[hreflang]').forEach((el) => label(el, 'prepnuti-jazyka-' + el.hreflang));
+    document.querySelectorAll('.social-links a, .site-footer .icon-link').forEach((el) => label(el, 'socialni-site'));
+    document.querySelectorAll('.press-logo-link').forEach((el) => label(el, 'media-logo'));
+    document.querySelectorAll('.faq summary').forEach((el) => label(el, 'faq-rozbaleni'));
+    document.querySelectorAll('.donor-form button[type="submit"], .donor-form .button').forEach((el) => label(el, 'formular-darce-odeslani'));
+
+    // Vysledek odeslani formulare neni klik, posilame ho jako vlastni udalost.
+    document.querySelectorAll('[data-donor-form]').forEach((form) => {
+      form.addEventListener('submit', () => track('formular-darce-submit', { stranka: location.pathname }));
+    });
+  }
+
   randomizeFeaturedStudents();
   randomizeSeekerOrder();
   chooseInitialLanguage();
+  prepareAnalyticsEvents();
 
   const menuButton = document.querySelector('.menu-toggle');
   const navigation = document.querySelector('.site-navigation');
