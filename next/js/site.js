@@ -96,8 +96,65 @@
     grid.append(...cards);
   }
 
+  // Zjistí preferovaný jazyk: nejdřív podle země (IP), při nedostupnosti podle prohlížeče.
+  async function detectLanguage() {
+    try {
+      const response = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(2500) });
+      if (response.ok) {
+        const data = await response.json();
+        const country = String(data.country_code || '').toUpperCase();
+        if (country === 'SK') return 'sk';
+        if (country === 'CZ') return 'cs';
+        if (country) return 'en';
+      }
+    } catch {
+      // Služba neodpověděla nebo ji blokuje rozšíření v prohlížeči — zkusíme jazyk prohlížeče.
+    }
+    for (const tag of navigator.languages || [navigator.language || '']) {
+      const base = String(tag).toLowerCase().split('-')[0];
+      if (base === 'cs' || base === 'sk' || base === 'en') return base;
+    }
+    return null;
+  }
+
+  // Jazyk vybereme jen při první návštěvě. Ruční přepnutí si pamatujeme a už ho nikdy nepřebíjíme.
+  async function chooseInitialLanguage() {
+    const nav = document.querySelector('.languages');
+    if (!nav) return;
+
+    const links = [...nav.querySelectorAll('a[hreflang]')];
+    const current = links.find((link) => link.hasAttribute('aria-current'));
+    if (!current) return;
+
+    const remember = (value) => {
+      try {
+        localStorage.setItem('preferred-language', value);
+      } catch {
+        // Soukromý režim localStorage zakazuje; pak se jazyk vybírá při každé návštěvě.
+      }
+    };
+    links.forEach((link) => link.addEventListener('click', () => remember(link.hreflang)));
+
+    let stored = null;
+    try {
+      stored = localStorage.getItem('preferred-language');
+    } catch {}
+    if (stored) return;
+
+    // Vyhledávačům a modelům necháváme stránku, na kterou přišly.
+    if (/bot|crawl|spider|slurp|bingpreview|headlesschrome/i.test(navigator.userAgent)) return;
+
+    const wanted = await detectLanguage();
+    if (!wanted) return;
+
+    remember(wanted);
+    const target = links.find((link) => link.hreflang === wanted);
+    if (target && wanted !== current.hreflang) location.replace(target.href);
+  }
+
   randomizeFeaturedStudents();
   randomizeSeekerOrder();
+  chooseInitialLanguage();
 
   const menuButton = document.querySelector('.menu-toggle');
   const navigation = document.querySelector('.site-navigation');
