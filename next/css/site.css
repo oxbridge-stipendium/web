@@ -12,3 +12,8 @@
   .info-grid.centered .info-card .prose { grid-column: auto; }
   .info-card .info-icon { width: 88px; height: 88px; margin: 14px auto 4px; }
 }
+
+/* Zadani Daniel 23. 10. 2026: zlatozlute tlacitko na uvodce. Tmavy text, protoze
+   bily by na zlate mel kontrast 2,4:1 a propadl by u AA. Navy ma 7,7:1. */
+.hero-copy .actions .button { background: #d4a017; border-color: #d4a017; color: #06103c; }
+.hero-copy .actions .button:hover { background: #b8860b; border-color: #b8860b; color: #06103c; }
