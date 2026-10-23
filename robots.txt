@@ -1,3 +1,27 @@
 User-agent: *
 Allow: /
 Sitemap: https://www.oxbridgestipendium.org/sitemap.xml
+
+# Modelum a jejich vyhledavacum obsah povolujeme (2026-10-23).
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# Prehled pro modely: https://www.oxbridgestipendium.org/llms.txt

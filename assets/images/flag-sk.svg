@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Shield adapted from HatScripts/circle-flags; see circle-flags-LICENSE.txt. -->
+  <defs>
+    <clipPath id="flag-circle">
+      <circle cx="32" cy="32" r="31"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#flag-circle)">
+    <path fill="#ffffff" d="M0 0h64v64H0z"/>
+    <path fill="#2534a4" d="M0 21.333h64v21.334H0z"/>
+    <path fill="#bc0030" d="M0 42.667h64V64H0z"/>
+    <g transform="translate(15.36 12.8) scale(.08)">
+      <path fill="#ffffff" d="M64 63v217c0 104 144 137 144 137s144-33 144-137V63z"/>
+      <path fill="#bc0030" d="M96 95v185a83 78 0 0 0 9 34h206a83 77 0 0 0 9-34V95z"/>
+      <path fill="#ffffff" d="M288 224h-64v-32h32v-32h-32v-32h-32v32h-32v32h32v32h-64v32h64v32h32v-32h64z"/>
+      <path fill="#2534a4" d="M152 359a247 231 0 0 0 56 24c12-3 34-11 56-24a123 115 0 0 0 47-45 60 56 0 0 0-34-10l-14 2a60 56 0 0 0-110 0 60 56 0 0 0-14-2c-12 0-24 4-34 10a123 115 0 0 0 47 45z"/>
+    </g>
+  </g>
+  <circle cx="32" cy="32" r="31" fill="none" stroke="#e8e8e8" stroke-width="2"/>
+</svg>

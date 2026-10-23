@@ -1,522 +1,361 @@
-/* Standalone site interactions: navigation, slideshow, articles, events, and donor forms. */
+/* Shared enhancements. Content, navigation and biographies also work without JavaScript. */
 (() => {
   'use strict';
 
-  // Enable the scripted layout immediately while waiting for DOM and stylesheet readiness.
-  document.documentElement.dataset.scriptState = 'enabled';
+  const language = document.documentElement.lang;
+  const translate = (cs, sk, en) => ({ cs, sk, en }[language] || en);
 
-  const MOBILE_MEDIA_QUERY = '(max-width: 767px)';
-  const MOBILE_LAYOUT_WIDTH = 320;
-  const SLIDESHOW_TRANSITION_MS = 800;
-  const SLIDESHOW_INTERVAL_MS = 4000;
-  const SLIDESHOW_SCROLL_SETTLE_MS = 150;
+  function updateLoanFootnote(grid) {
+    const note = grid.closest('section').querySelector('[data-loan-note]');
+    if (!note) return;
 
-  function initializeResponsiveLayout() {
-    const isMobileLayout = window.matchMedia(MOBILE_MEDIA_QUERY).matches;
-    const mobileTemplate = document.getElementById('mobile-layout');
-    if (isMobileLayout && mobileTemplate) {
-      document
-        .getElementById('static-layout')
-        .replaceChildren(mobileTemplate.content.cloneNode(true));
-      document.body.classList.add('device-mobile-optimized');
-      // Scale the original 320px mobile layout to the device width.
-      document.body.style.zoom = String(window.innerWidth / MOBILE_LAYOUT_WIDTH);
-    }
-    mobileTemplate?.remove();
-    const startedWithMobileLayout = isMobileLayout;
-    window.addEventListener('resize', () => {
-      const isMobileViewport = window.matchMedia(MOBILE_MEDIA_QUERY).matches;
-      if (isMobileViewport !== startedWithMobileLayout) window.location.reload();
-      else if (isMobileViewport)
-        document.body.style.zoom = String(window.innerWidth / MOBILE_LAYOUT_WIDTH);
-    });
+    const funding = grid.querySelectorAll(':scope > .student-card:not([hidden]) .funding');
+    note.hidden = ![...funding].some(amount => amount.textContent.includes('**'));
   }
 
-  function initializeBiographies() {
-    document.querySelectorAll('[data-expand-biography]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const isExpanded = button.getAttribute('aria-expanded') !== 'true';
-        button.setAttribute('aria-expanded', String(isExpanded));
-        button.textContent = isExpanded ? 'Read less' : 'Read more';
-        button.closest('.collapsible-text').classList.toggle('static-expanded', isExpanded);
-      });
-    });
+  // Rovnoměrné náhodné číslo 0..limit-1. Math.random() má v prohlížečích omezenou kvalitu
+  // a modulo by navíc zvýhodnilo nižší čísla, proto bereme kryptografický zdroj
+  // a zahazujeme hodnoty z neúplného posledního bloku (rejection sampling).
+  function randomBelow(limit) {
+    const source = globalThis.crypto;
+    if (!source?.getRandomValues) return Math.floor(Math.random() * limit);
+    const bound = Math.floor(4294967296 / limit) * limit;
+    const buffer = new Uint32Array(1);
+    let value;
+    do {
+      source.getRandomValues(buffer);
+      value = buffer[0];
+    } while (value >= bound);
+    return value % limit;
   }
 
-  function initializeMobileMenu() {
-    const menu = document.getElementById('mobile-menu');
-    const menuToggle = document.getElementById('mobile-menu-toggle');
-    if (menu && menuToggle) {
-      menu.hidden = true;
-      menu.removeAttribute('data-menu-uninitialized');
-      menuToggle.setAttribute('aria-controls', menu.id);
-      menuToggle.setAttribute('aria-expanded', 'false');
-      const closeButton = document.createElement('button');
-      closeButton.type = 'button';
-      closeButton.className = 'static-menu-close';
-      closeButton.textContent = '×';
-      closeButton.setAttribute('aria-label', 'Close menu / Zavřít menu');
-      menu.append(closeButton);
-      const setMenuOpen = (isOpen) => {
-        menu.hidden = !isOpen;
-        menu.classList.toggle('static-menu-open', isOpen);
-        document.body.classList.toggle('static-menu-is-open', isOpen);
-        menuToggle.setAttribute('aria-expanded', String(isOpen));
-        (isOpen ? closeButton : menuToggle).focus();
-      };
-      menuToggle.addEventListener('click', () => setMenuOpen(menu.hidden));
-      menuToggle.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          setMenuOpen(menu.hidden);
-        }
-      });
-      closeButton.addEventListener('click', () => setMenuOpen(false));
-      document
-        .getElementById('mobile-menu-overlay')
-        ?.addEventListener('click', () => setMenuOpen(false));
-      menu.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') setMenuOpen(false);
-        if (event.key === 'Tab') {
-          const focusableElements = [...menu.querySelectorAll('a[href],button')];
-          const firstFocusable = focusableElements[0],
-            lastFocusable = focusableElements.at(-1);
-          if (event.shiftKey && document.activeElement === firstFocusable) {
-            event.preventDefault();
-            lastFocusable.focus();
-          } else if (!event.shiftKey && document.activeElement === lastFocusable) {
-            event.preventDefault();
-            firstFocusable.focus();
-          }
-        }
-      });
-    }
-  }
+  async function randomizeFeaturedStudents() {
+    const grid = document.querySelector('[data-featured-students]');
+    if (!grid) return;
 
-  function initializeBackToTop() {
-    document
-      .getElementById('back-to-top')
-      ?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-  }
+    const note = grid.closest('section').querySelector('[data-student-sample-note]');
+    const profileLink = grid.querySelector('.text-link');
+    const source = grid.dataset.studentSource;
 
-  function initializePressSlideshows() {
-    document.querySelectorAll('.gallery-horizontal-scroll').forEach(initializePressSlideshow);
-  }
-
-  function initializePressSlideshow(viewport) {
-    const slideItems = [...viewport.querySelectorAll('.gallery-item-container')];
-    const slideTrack = viewport.querySelector('.gallery-horizontal-scroll-inner');
-    if (slideItems.length < 2 || !slideTrack) return;
-    const slideWidth = viewport.clientWidth;
-    const slideGroups = slideItems.map((item) => item.closest('.gallery-slide-group'));
-    viewport.dataset.autoplay = 'true';
-    viewport.dataset.sliding = 'false';
-    // Own the 800ms animation: native smooth scrolling can become an instant
-    // jump in the preview, and the saved snap targets interrupt each frame.
-    viewport.style.scrollSnapType = 'none';
-    viewport.style.scrollBehavior = 'auto';
-    slideTrack.style.width = `${(slideItems.length + 2) * slideWidth}px`;
-    slideTrack.style.height = `${viewport.clientHeight}px`;
-    const positionSlide = (slideGroup, position) => {
-      slideGroup.style.setProperty('--group-left', `${position * slideWidth}px`);
-      slideGroup.querySelector('.gallery-item-container').style.left = `${position * slideWidth}px`;
-      slideGroup.querySelectorAll('img').forEach((image) => {
-        image.loading = 'eager';
-      });
-    };
-    const createBoundarySlide = (sourceSlide, position) => {
-      const boundarySlide = sourceSlide.cloneNode(true);
-      boundarySlide.setAttribute('aria-hidden', 'true');
-      boundarySlide.setAttribute('inert', '');
-      boundarySlide.dataset.slideClone = 'true';
-      boundarySlide.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
-      boundarySlide.querySelectorAll('a, [tabindex]').forEach((element) => {
-        element.tabIndex = -1;
-      });
-      boundarySlide.querySelector('.gallery-item-container').setAttribute('aria-hidden', 'true');
-      positionSlide(boundarySlide, position);
-      return boundarySlide;
-    };
-    // Identical edge copies make both directions loop without reversing or
-    // flashing back across the other articles.
-    slideTrack.prepend(createBoundarySlide(slideGroups[slideGroups.length - 1], 0));
-    slideTrack.append(createBoundarySlide(slideGroups[0], slideItems.length + 1));
-    slideGroups.forEach((slideGroup, index) => positionSlide(slideGroup, index + 1));
-    let currentSlideIndex = 0,
-      isAnimating = false,
-      scrollSettleTimer;
-    const setActiveSlide = (nextSlideIndex, moveFocus = false) => {
-      currentSlideIndex = nextSlideIndex;
-      slideItems.forEach((item, index) => {
-        const isHidden = index !== nextSlideIndex;
-        slideGroups[index].setAttribute('aria-hidden', String(isHidden));
-        item.setAttribute('aria-hidden', String(isHidden));
-        item.closest('a').tabIndex = isHidden ? -1 : 0;
-        item.querySelector('[role=link]')?.setAttribute('tabindex', '-1');
-      });
-      if (moveFocus) slideItems[nextSlideIndex].closest('a').focus({ preventScroll: true });
-    };
-    const finishSlide = (position, moveFocus) => {
-      const nextSlideIndex = (position - 1 + slideItems.length) % slideItems.length;
-      if (position === 0 || position === slideItems.length + 1)
-        viewport.scrollLeft = (nextSlideIndex + 1) * slideWidth;
-      const hasFocusedArticle = slideItems.some((item) =>
-        item.closest('a').contains(document.activeElement),
-      );
-      setActiveSlide(nextSlideIndex, moveFocus || hasFocusedArticle);
-      isAnimating = false;
-      viewport.dataset.sliding = 'false';
-    };
-    const animateToPosition = (position, moveFocus = false) => {
-      if (isAnimating) return;
-      clearTimeout(scrollSettleTimer);
-      isAnimating = true;
-      viewport.dataset.sliding = 'true';
-      const startOffset = viewport.scrollLeft,
-        targetOffset = position * slideWidth;
-      const animationStartTime = performance.now();
-      const animateFrame = (frameTime) => {
-        const progress = Math.min(1, (frameTime - animationStartTime) / SLIDESHOW_TRANSITION_MS);
-        const easedProgress = (1 - Math.cos(Math.PI * progress)) / 2;
-        viewport.scrollLeft = startOffset + (targetOffset - startOffset) * easedProgress;
-        if (progress < 1) requestAnimationFrame(animateFrame);
-        else finishSlide(position, moveFocus);
-      };
-      requestAnimationFrame(animateFrame);
-    };
-    viewport.scrollLeft = slideWidth;
-    setActiveSlide(0);
-    viewport.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-        event.preventDefault();
-        animateToPosition(currentSlideIndex + 1 + (event.key === 'ArrowRight' ? 1 : -1), true);
-      }
-    });
-    // Keep the selected article in sync after a touch or trackpad swipe.
-    viewport.addEventListener('scroll', () => {
-      clearTimeout(scrollSettleTimer);
-      if (isAnimating) return;
-      scrollSettleTimer = setTimeout(() => {
-        const position = Math.max(
-          0,
-          Math.min(slideItems.length + 1, Math.round(viewport.scrollLeft / slideWidth)),
-        );
-        if (Math.abs(viewport.scrollLeft - position * slideWidth) > 1) animateToPosition(position);
-        else finishSlide(position, false);
-      }, SLIDESHOW_SCROLL_SETTLE_MS);
-    });
-    window.setInterval(() => {
-      if (
-        !document.hidden &&
-        !viewport.matches(':hover') &&
-        !viewport.contains(document.activeElement)
-      ) {
-        animateToPosition(currentSlideIndex + 2);
-      }
-    }, SLIDESHOW_INTERVAL_MS);
-  }
-
-  function createDialog(title) {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'static-dialog';
-    const heading = document.createElement('h2');
-    heading.textContent = title;
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.textContent = '×';
-    closeButton.className = 'static-dialog-close';
-    closeButton.setAttribute('aria-label', 'Close');
-    closeButton.addEventListener('click', () => dialog.close());
-    dialog.append(closeButton, heading);
-    dialog.addEventListener('close', () => dialog.remove());
-    document.body.append(dialog);
-    return dialog;
-  }
-
-  function getPostUrl(button) {
-    if (window.location.pathname.includes('/post/')) return window.location.href.split('?')[0];
-    let container = button.parentElement;
-    while (container && container.tagName !== 'MAIN') {
-      const postLink = container.querySelector('a[href*="/post/"]');
-      if (postLink) return new URL(postLink.getAttribute('href'), window.location.origin).href;
-      container = container.parentElement;
-    }
-    return window.location.href.split('?')[0];
-  }
-
-  function openSocialShare(network, url) {
-    const encodedUrl = encodeURIComponent(url);
-    const shareUrls = {
-      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodedUrl,
-      twitter: 'https://twitter.com/intent/tweet?url=' + encodedUrl,
-      'linked-in': 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodedUrl,
-    };
-    if (shareUrls[network]) window.open(shareUrls[network], '_blank', 'noopener,noreferrer');
-  }
-
-  function openShareDialog(url) {
-    const dialog = createDialog('Share post');
-    const linkInput = document.createElement('input');
-    linkInput.readOnly = true;
-    linkInput.value = url;
-    linkInput.setAttribute('aria-label', 'Post link');
-    const copyButton = document.createElement('button');
-    copyButton.type = 'button';
-    copyButton.textContent = 'Copy link';
-    copyButton.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(url);
-        copyButton.textContent = 'Copied';
-      } catch {
-        linkInput.focus();
-        linkInput.select();
-        copyButton.textContent = 'Select and copy the link';
-      }
-    });
-    dialog.append(linkInput, copyButton);
-    ['facebook', 'twitter', 'linked-in'].forEach((network) => {
-      const shareButton = document.createElement('button');
-      shareButton.type = 'button';
-      shareButton.textContent = { facebook: 'Facebook', twitter: 'X', 'linked-in': 'LinkedIn' }[
-        network
-      ];
-      shareButton.addEventListener('click', () => openSocialShare(network, url));
-      dialog.append(shareButton);
-    });
-    dialog.showModal();
-  }
-
-  function initializePostSharing() {
-    document.querySelectorAll('[data-share-platform]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const platform = button.dataset.sharePlatform;
-        if (platform === 'print') window.print();
-        else if (platform === 'link') openShareDialog(window.location.href.split('?')[0]);
-        else openSocialShare(platform, window.location.href.split('?')[0]);
-      });
-    });
-    document
-      .querySelectorAll('.post-share-button')
-      .forEach((button) =>
-        button.addEventListener('click', () => openShareDialog(getPostUrl(button))),
-      );
-  }
-
-  function initializeImageExpansion() {
-    document.querySelectorAll('.image-expand-action').forEach((button) => {
-      button.addEventListener('click', () => {
-        let imageContainer = button.parentElement;
-        while (imageContainer && !imageContainer.querySelector('img'))
-          imageContainer = imageContainer.parentElement;
-        const sourceImage = imageContainer?.querySelector('img');
-        if (!sourceImage) return;
-        const dialog = createDialog(sourceImage.alt || '');
-        dialog.classList.add('static-image-dialog');
-        const enlargedImage = document.createElement('img');
-        enlargedImage.src = sourceImage.currentSrc || sourceImage.src;
-        enlargedImage.alt = sourceImage.alt;
-        dialog.append(enlargedImage);
-        dialog.showModal();
-      });
-    });
-  }
-
-  function initializeEventDescriptions() {
-    document.querySelectorAll('.event-description-toggle').forEach((button) => {
-      const descriptionContent = document.querySelector('.event-description-content');
-      if (!descriptionContent) return;
-      button.setAttribute('aria-expanded', 'false');
-      button.addEventListener('click', () => {
-        const isExpanded = button.getAttribute('aria-expanded') !== 'true';
-        button.setAttribute('aria-expanded', String(isExpanded));
-        button.textContent = isExpanded ? 'Show Less' : 'Show More';
-        descriptionContent.classList.toggle('static-event-expanded', isExpanded);
-      });
-    });
-  }
-
-  function initializeEventAccordions() {
-    document
-      .querySelectorAll('.event-details-accordion > [role=button][aria-expanded]')
-      .forEach((button) => {
-        const details = button.parentElement.querySelector('.event-details-accordion-content');
-        if (!details) return;
-        details.hidden = true;
-        button.tabIndex = 0;
-        const toggleDetails = () => {
-          details.hidden = !details.hidden;
-          button.setAttribute('aria-expanded', String(!details.hidden));
-        };
-        button.addEventListener('click', toggleDetails);
-        button.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            toggleDetails();
-          }
-        });
-      });
-  }
-
-  async function openSearchDialog(initialQuery) {
-    const dialog = createDialog('Search');
-    const searchInput = document.createElement('input');
-    searchInput.type = 'search';
-    searchInput.placeholder = 'Search';
-    searchInput.value = initialQuery || '';
-    searchInput.setAttribute('aria-label', 'Search posts');
-    const resultsContainer = document.createElement('div');
-    resultsContainer.className = 'static-search-results';
-    resultsContainer.setAttribute('aria-live', 'polite');
-    dialog.append(searchInput, resultsContainer);
-    dialog.showModal();
-    searchInput.focus();
     try {
-      const response = await fetch('/assets/search.json');
-      if (!response.ok) throw new Error('Search unavailable');
-      const posts = await response.json();
-      const updateResults = () => {
-        const query = searchInput.value.trim().toLocaleLowerCase();
-        resultsContainer.replaceChildren();
-        const matches = posts.filter((post) =>
-          (post.title + ' ' + post.text).toLocaleLowerCase().includes(query),
-        );
-        matches.forEach((post) => {
-          const resultLink = document.createElement('a');
-          resultLink.href = post.url;
-          resultLink.textContent = post.title;
-          resultsContainer.append(resultLink);
-        });
-        if (!matches.length) resultsContainer.textContent = 'No posts found.';
-      };
-      searchInput.addEventListener('input', updateResults);
-      updateResults();
-    } catch {
-      resultsContainer.textContent = 'Search is unavailable. Please visit the blog.';
-    }
-  }
+      // Use the full applicant page as the single source for names, photos and funding.
+      const response = await fetch(source);
+      if (!response.ok) throw new Error('Applicant profiles unavailable');
+      const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const students = [...page.querySelectorAll('.student-grid > .student-card[id]')];
+      if (!students.length) return;
 
-  function initializePostSearch() {
-    document
-      .querySelectorAll('.search-input [role=button], [aria-label="Search"][role=button]')
-      .forEach((button) => {
-        button.tabIndex = 0;
-        button.addEventListener('click', () => openSearchDialog(''));
-        button.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openSearchDialog('');
-          }
-        });
-      });
-    document.querySelectorAll('input[placeholder=Search]').forEach((input) =>
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          openSearchDialog(input.value);
-        }
-      }),
-    );
-  }
-
-  function initializeProfileActions() {
-    document
-      .querySelectorAll('.profile-follow-action, .profile-actions-menu button')
-      .forEach((button) =>
-        button.addEventListener('click', () => {
-          const dialog = createDialog('Follow Oxbridge Stipendium');
-          const message = document.createElement('p');
-          message.textContent =
-            'Member accounts are currently unavailable. For updates, contact stipendium@oxbridgestipendium.org or follow our social media channels.';
-          dialog.append(message);
-          dialog.showModal();
-        }),
-      );
-  }
-
-  // Formulář dárců odesílá do Brevo. Aby návštěvník nezůstal na cizí
-  // děkovací stránce, míří odeslání do skrytého rámečku a poděkování
-  // ukážeme přímo pod formulářem. Bez JavaScriptu se formulář odešle
-  // normálně a potvrzení zobrazí Brevo — funguje to tak jako tak.
-  function initializeDonorForms() {
-    const forms = document.querySelectorAll('[data-brevo-form]');
-    if (!forms.length) return;
-
-    let sink = document.getElementById('brevo-sink');
-    if (!sink) {
-      sink = document.createElement('iframe');
-      sink.id = 'brevo-sink';
-      sink.name = 'brevo-sink';
-      sink.title = 'Odeslání formuláře';
-      sink.setAttribute('aria-hidden', 'true');
-      sink.hidden = true;
-      document.body.append(sink);
-    }
-
-    const language = document.documentElement.lang;
-    const thanksText =
-      language === 'en'
-        ? 'Thank you, you are registered. We have sent a confirmation to your e-mail.'
-        : language === 'sk'
-          ? 'Ďakujeme, registráciu máme. Potvrdenie sme poslali na váš e-mail.'
-          : 'Děkujeme, registraci máme. Potvrzení jsme poslali na váš e-mail.';
-
-    forms.forEach((form) => {
-      // Část stránek má poděkování už v HTML (zůstalo z Wixu), zbytku ho doplníme.
-      let thanks = form.querySelector('[id*="thanks-for-your-support"]');
-      if (!thanks) {
-        thanks = document.createElement('p');
-        thanks.className = 'static-form-status';
-        thanks.textContent = thanksText;
-        form.append(thanks);
+      // Partial Fisher–Yates: an equal chance for every applicant, without duplicates.
+      const sampleSize = Math.min(3, students.length);
+      for (let index = 0; index < sampleSize; index++) {
+        const chosen = index + randomBelow(students.length - index);
+        [students[index], students[chosen]] = [students[chosen], students[index]];
       }
-      thanks.hidden = true;
-      thanks.removeAttribute('aria-hidden');
-      thanks.setAttribute('role', 'status');
 
-      form.addEventListener('submit', () => {
-        // Neplatná pole zastaví prohlížeč sám, sem se pak vůbec nedostaneme.
-        const button = form.querySelector('button[type="submit"]');
-        if (button) button.disabled = true;
-
-        sink.addEventListener(
-          'load',
-          () => {
-            if (thanks) thanks.hidden = false;
-            form.reset();
-            if (button) button.disabled = false;
-          },
-          { once: true },
-        );
+      const sample = students.slice(0, sampleSize).map((student) => {
+        const card = document.importNode(student, true);
+        const link = profileLink.cloneNode(true);
+        link.href = `${source}#${encodeURIComponent(card.id)}`;
+        card.removeAttribute('id');
+        card.querySelectorAll('.biography, .card-links').forEach((element) => element.remove());
+        card.querySelector('.card-body').append(link);
+        return card;
       });
+
+      grid.replaceChildren(...sample);
+      updateLoanFootnote(grid);
+      note.textContent = translate(
+        'Náhodný výběr uchazečů. Při každém načtení stránky vybíráme znovu.',
+        'Náhodný výber uchádzačov. Pri každom načítaní stránky vyberáme znova.',
+        'A random sample of applicants, selected again each time you load this page.'
+      );
+    } catch {
+      // Keep the existing sample and its neutral label if the local page cannot load.
+    }
+  }
+
+  document.querySelectorAll('.student-grid').forEach(updateLoanFootnote);
+  function randomizeSeekerOrder() {
+    const grid = document.querySelector('.student-grid:not([data-featured-students])');
+    if (!grid) return;
+
+    const cards = [...grid.children];
+    if (cards.length < 2) return;
+
+    // Příchod z odkazu na konkrétní profil (/scholarship-seekers/#student-3) necháváme být,
+    // aby prohlížeč odroloval na kartu, na kterou člověk klikl.
+    const anchored = decodeURIComponent(location.hash.slice(1));
+    if (anchored && cards.some((card) => card.id === anchored)) return;
+
+    // Fisher–Yates: každé pořadí má stejnou pravděpodobnost.
+    for (let index = cards.length - 1; index > 0; index--) {
+      const chosen = randomBelow(index + 1);
+      [cards[index], cards[chosen]] = [cards[chosen], cards[index]];
+    }
+
+    grid.append(...cards);
+  }
+
+  // Zjistí preferovaný jazyk: nejdřív podle země (IP), při nedostupnosti podle prohlížeče.
+  async function detectLanguage() {
+    try {
+      const response = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(2500) });
+      if (response.ok) {
+        const data = await response.json();
+        const country = String(data.country_code || '').toUpperCase();
+        if (country === 'SK') return 'sk';
+        if (country === 'CZ') return 'cs';
+        if (country) return 'en';
+      }
+    } catch {
+      // Služba neodpověděla nebo ji blokuje rozšíření v prohlížeči — zkusíme jazyk prohlížeče.
+    }
+    for (const tag of navigator.languages || [navigator.language || '']) {
+      const base = String(tag).toLowerCase().split('-')[0];
+      if (base === 'cs' || base === 'sk' || base === 'en') return base;
+    }
+    return null;
+  }
+
+  // Jazyk vybereme jen při první návštěvě. Ruční přepnutí si pamatujeme a už ho nikdy nepřebíjíme.
+  async function chooseInitialLanguage() {
+    const nav = document.querySelector('.languages');
+    if (!nav) return;
+
+    const links = [...nav.querySelectorAll('a[hreflang]')];
+    const current = links.find((link) => link.hasAttribute('aria-current'));
+    if (!current) return;
+
+    const remember = (value) => {
+      try {
+        localStorage.setItem('preferred-language', value);
+      } catch {
+        // Soukromý režim localStorage zakazuje; pak se jazyk vybírá při každé návštěvě.
+      }
+    };
+    links.forEach((link) => link.addEventListener('click', () => remember(link.hreflang)));
+
+    let stored = null;
+    try {
+      stored = localStorage.getItem('preferred-language');
+    } catch {}
+    if (stored) return;
+
+    // Vyhledávačům a modelům necháváme stránku, na kterou přišly.
+    if (/bot|crawl|spider|slurp|bingpreview|headlesschrome/i.test(navigator.userAgent)) return;
+
+    const wanted = await detectLanguage();
+    if (!wanted) return;
+
+    remember(wanted);
+    const target = links.find((link) => link.hreflang === wanted);
+    if (target && wanted !== current.hreflang) location.replace(target.href);
+  }
+
+  // --- Mereni (Umami) ---------------------------------------------------
+  // Merici skript se vklada az se skutecnym website-id (tools/add_umami.py).
+  // Dokud tam neni, data atributy nic nedelaji a volani track() se zahodi.
+
+  function track(name, data) {
+    try {
+      window.umami?.track(name, data);
+    } catch {
+      // Mereni nikdy nesmi shodit stranku.
+    }
+  }
+
+  // Umami si pri kliknuti precte atribut data-umami-event, takze ho staci
+  // doplnit za behu a nemusime sahat do vsech 58 stranek.
+  function prepareAnalyticsEvents() {
+    const label = (element, name) => {
+      if (element && !element.dataset.umamiEvent) element.dataset.umamiEvent = name;
+    };
+
+    document.querySelectorAll('.hero-copy .actions .button').forEach((el) => label(el, 'cta-podporit-studenta'));
+    document.querySelectorAll('.hero-copy .actions .text-link').forEach((el) => label(el, 'cta-jsem-student'));
+    document.querySelectorAll('.callout .button, .contact-band .button, .section-action .button').forEach((el) => label(el, 'cta-sekce'));
+    document.querySelectorAll('.student-card .text-link').forEach((el) => label(el, 'profil-uchazece'));
+    document.querySelectorAll('.languages a[hreflang]').forEach((el) => label(el, 'prepnuti-jazyka-' + el.hreflang));
+    document.querySelectorAll('.social-links a, .site-footer .icon-link').forEach((el) => label(el, 'socialni-site'));
+    document.querySelectorAll('.press-logo-link').forEach((el) => label(el, 'media-logo'));
+    document.querySelectorAll('.faq summary').forEach((el) => label(el, 'faq-rozbaleni'));
+    document.querySelectorAll('.donor-form button[type="submit"], .donor-form .button').forEach((el) => label(el, 'formular-darce-odeslani'));
+
+    // Vysledek odeslani formulare neni klik, posilame ho jako vlastni udalost.
+    document.querySelectorAll('[data-donor-form]').forEach((form) => {
+      form.addEventListener('submit', () => track('formular-darce-submit', { stranka: location.pathname }));
     });
   }
 
-  // Select the layout before binding its controls; the original order is intentional.
-  function initializeSite() {
-    initializeResponsiveLayout();
-    initializeBiographies();
-    initializeMobileMenu();
-    initializeBackToTop();
-    initializePressSlideshows();
-    initializePostSharing();
-    initializeImageExpansion();
-    initializeEventDescriptions();
-    initializeEventAccordions();
-    initializePostSearch();
-    initializeProfileActions();
-    initializeDonorForms();
+  randomizeFeaturedStudents();
+  randomizeSeekerOrder();
+  chooseInitialLanguage();
+  prepareAnalyticsEvents();
+
+  const menuButton = document.querySelector('.menu-toggle');
+  const navigation = document.querySelector('.site-navigation');
+  const menuViewport = window.matchMedia('(max-width: 1020px)');
+
+  const homeIntro = document.querySelector('.home-intro');
+  if (homeIntro) {
+    const header = document.querySelector('.site-header');
+    const updateHeaderHeight = () => {
+      homeIntro.style.setProperty('--header-height', `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeaderHeight();
+    new ResizeObserver(updateHeaderHeight).observe(header);
   }
 
-  // Slide dimensions are available only after the shared stylesheet has loaded.
-  function initializeAfterStyles() {
-    const stylesheet = document.getElementById('site-styles');
-    if (!stylesheet || stylesheet.sheet) initializeSite();
-    else stylesheet.addEventListener('load', initializeSite, { once: true });
+  function closeMenu(returnFocus = false) {
+    navigation?.classList.remove('is-open');
+    menuButton?.setAttribute('aria-expanded', 'false');
+    if (returnFocus) menuButton.focus();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeAfterStyles, { once: true });
-  } else {
-    initializeAfterStyles();
+  if (menuButton && navigation) {
+    document.documentElement.classList.add('menu-enabled');
+    menuButton.hidden = false;
+    menuButton.addEventListener('click', () => {
+      const open = menuButton.getAttribute('aria-expanded') !== 'true';
+      menuButton.setAttribute('aria-expanded', String(open));
+      navigation.classList.toggle('is-open', open);
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.site-header')) closeMenu();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && menuButton.getAttribute('aria-expanded') === 'true') closeMenu(true);
+    });
+    navigation.addEventListener('click', (event) => {
+      if (event.target.closest('a')) closeMenu();
+    });
+    document.querySelector('.site-header').addEventListener('focusout', (event) => {
+      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) closeMenu();
+    });
+    menuViewport.addEventListener('change', () => closeMenu());
+  }
+
+  document.querySelectorAll('[data-donor-form]').forEach((form) => {
+    form.querySelector('button[type="submit"]').hidden = false;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const fields = new FormData(form);
+      const name = `${fields.get('first-name').trim()} ${fields.get('last-name').trim()}`;
+      const email = fields.get('email').trim();
+      const subject = translate('Zájem o podporu studentů', 'Záujem o podporu študentov', 'Interest in supporting students');
+      const body = translate(
+        `Dobrý den,\n\nmám zájem podpořit studenty prostřednictvím projektu Oxbridge Stipendium. Prosím, kontaktujte mě ohledně možností podpory.\n\nJméno: ${name}\nE-mail: ${email}\n\nDěkuji.`,
+        `Dobrý deň,\n\nmám záujem podporiť študentov prostredníctvom projektu Oxbridge Stipendium. Prosím, kontaktujte ma ohľadom možností podpory.\n\nMeno: ${name}\nE-mail: ${email}\n\nĎakujem.`,
+        `Hello,\n\nI would like to support students through Oxbridge Stipendium. Please contact me to discuss the options.\n\nName: ${name}\nEmail: ${email}\n\nThank you.`
+      );
+      const status = form.querySelector('.form-status');
+      const note = document.createElement('p');
+      note.textContent = translate('Zpráva je připravena. Otevřete ji ve svém e-mailu a odešlete.', 'Správa je pripravená. Otvorte ju vo svojom e-maile a odošlite.', 'Your message is ready. Open it in your email app and send it.');
+      const openEmail = document.createElement('a');
+      openEmail.className = 'icon-link';
+      openEmail.href = `mailto:stipendium@oxbridgestipendium.org?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const emailLabel = translate('Otevřít e-mail', 'Otvoriť e-mail', 'Open email');
+      openEmail.setAttribute('aria-label', emailLabel);
+      openEmail.title = emailLabel;
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.classList.add('icon');
+      icon.setAttribute('width', '22');
+      icon.setAttribute('height', '22');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('focusable', 'false');
+      const symbol = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      symbol.setAttribute('href', '/assets/icons.svg#mail');
+      icon.append(symbol);
+      openEmail.append(icon);
+      status.replaceChildren(note, openEmail);
+      openEmail.focus();
+    });
+  });
+
+  const shareDialog = document.getElementById('share-dialog');
+  const imageDialog = document.getElementById('image-dialog');
+  document.querySelectorAll('[data-close-dialog]').forEach((button) => {
+    button.addEventListener('click', () => button.closest('dialog').close());
+  });
+  document.querySelectorAll('dialog').forEach((dialog) => {
+    dialog.addEventListener('click', (event) => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+    });
+  });
+  document.querySelectorAll('[data-share]').forEach((button) => {
+    button.hidden = false;
+    button.addEventListener('click', () => {
+      const pageUrl = new URL(location.href);
+      pageUrl.hash = '';
+      document.getElementById('share-url').value = pageUrl.href;
+      document.getElementById('copy-status').textContent = '';
+      const encoded = encodeURIComponent(pageUrl.href);
+      const destinations = {
+        linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`,
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
+        x: `https://twitter.com/intent/tweet?url=${encoded}&text=${encodeURIComponent(document.title)}`
+      };
+      shareDialog.querySelectorAll('[data-social]').forEach((link) => {
+        link.href = destinations[link.dataset.social];
+      });
+      shareDialog.showModal();
+    });
+  });
+  document.querySelector('[data-copy-link]')?.addEventListener('click', async () => {
+    const field = document.getElementById('share-url');
+    const status = document.getElementById('copy-status');
+    try {
+      await navigator.clipboard.writeText(field.value);
+      status.textContent = translate('Odkaz zkopírován.', 'Odkaz bol skopírovaný.', 'Link copied.');
+    } catch {
+      field.focus();
+      field.select();
+      status.textContent = translate('Zkopírujte označený odkaz pomocí Ctrl+C nebo ⌘C.', 'Skopírujte označený odkaz pomocou Ctrl+C alebo ⌘C.', 'Copy the selected link using Ctrl+C or ⌘C.');
+    }
+  });
+  document.querySelectorAll('[data-expand-image]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      const original = button.querySelector('img');
+      const expanded = imageDialog.querySelector('img');
+      expanded.src = original.currentSrc;
+      expanded.alt = original.alt;
+      imageDialog.showModal();
+    });
+  });
+
+  const searchForm = document.querySelector('[data-search-form]');
+  if (searchForm) {
+    const field = searchForm.querySelector('input');
+    const status = document.querySelector('.search-status');
+    const cards = [...document.querySelectorAll('[data-article-card]')];
+    let articles = [];
+    const normalize = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    function search() {
+      const query = normalize(field.value.trim());
+      let count = 0;
+      cards.forEach((card) => {
+        const path = new URL(card.querySelector('a').href).pathname;
+        const article = articles.find((entry) => entry.url === path);
+        const searchableText = `${card.textContent} ${article ? `${article.title} ${article.text}` : ''}`;
+        const matches = !query || normalize(searchableText).includes(query);
+        card.hidden = !matches;
+        if (matches) count++;
+      });
+      status.textContent = query ? translate(`Počet nalezených článků: ${count}`, `Počet nájdených článkov: ${count}`, `Articles found: ${count}`) : '';
+    }
+    searchForm.hidden = false;
+    searchForm.addEventListener('submit', (event) => { event.preventDefault(); search(); });
+    field.addEventListener('input', search);
+    fetch('/assets/search.json').then((response) => {
+      if (!response.ok) throw new Error('Search index unavailable');
+      return response.json();
+    }).then((data) => { articles = data; search(); }).catch(() => {
+      // Titles and visible excerpts remain searchable if the full index is unavailable.
+      search();
+    });
   }
 })();
