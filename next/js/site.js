@@ -13,6 +13,22 @@
     note.hidden = ![...funding].some(amount => amount.textContent.includes('**'));
   }
 
+  // Rovnoměrné náhodné číslo 0..limit-1. Math.random() má v prohlížečích omezenou kvalitu
+  // a modulo by navíc zvýhodnilo nižší čísla, proto bereme kryptografický zdroj
+  // a zahazujeme hodnoty z neúplného posledního bloku (rejection sampling).
+  function randomBelow(limit) {
+    const source = globalThis.crypto;
+    if (!source?.getRandomValues) return Math.floor(Math.random() * limit);
+    const bound = Math.floor(4294967296 / limit) * limit;
+    const buffer = new Uint32Array(1);
+    let value;
+    do {
+      source.getRandomValues(buffer);
+      value = buffer[0];
+    } while (value >= bound);
+    return value % limit;
+  }
+
   async function randomizeFeaturedStudents() {
     const grid = document.querySelector('[data-featured-students]');
     if (!grid) return;
@@ -32,7 +48,7 @@
       // Partial Fisher–Yates: an equal chance for every applicant, without duplicates.
       const sampleSize = Math.min(3, students.length);
       for (let index = 0; index < sampleSize; index++) {
-        const chosen = index + Math.floor(Math.random() * (students.length - index));
+        const chosen = index + randomBelow(students.length - index);
         [students[index], students[chosen]] = [students[chosen], students[index]];
       }
 
@@ -59,7 +75,29 @@
   }
 
   document.querySelectorAll('.student-grid').forEach(updateLoanFootnote);
+  function randomizeSeekerOrder() {
+    const grid = document.querySelector('.student-grid:not([data-featured-students])');
+    if (!grid) return;
+
+    const cards = [...grid.children];
+    if (cards.length < 2) return;
+
+    // Příchod z odkazu na konkrétní profil (/scholarship-seekers/#student-3) necháváme být,
+    // aby prohlížeč odroloval na kartu, na kterou člověk klikl.
+    const anchored = decodeURIComponent(location.hash.slice(1));
+    if (anchored && cards.some((card) => card.id === anchored)) return;
+
+    // Fisher–Yates: každé pořadí má stejnou pravděpodobnost.
+    for (let index = cards.length - 1; index > 0; index--) {
+      const chosen = randomBelow(index + 1);
+      [cards[index], cards[chosen]] = [cards[chosen], cards[index]];
+    }
+
+    grid.append(...cards);
+  }
+
   randomizeFeaturedStudents();
+  randomizeSeekerOrder();
 
   const menuButton = document.querySelector('.menu-toggle');
   const navigation = document.querySelector('.site-navigation');
